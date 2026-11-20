@@ -1,0 +1,244 @@
+// TaskNest – Project Management SaaS
+// All tables live in the Postgres schema named in DATABASE_URL (`&schema=tasknest`).
+
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/generated/prisma"
+  moduleFormat           = "esm"
+  generatedFileExtension = "ts"
+  importFileExtension    = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────────────────────── Enums ─────────────────────────────
+
+enum Role {
+  ADMIN
+  MANAGER
+  MEMBER
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+}
+
+enum Plan {
+  FREE
+  PRO
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+}
+
+enum AuditAction {
+  USER_ROLE_CHANGED
+  USER_STATUS_CHANGED
+  PROJECT_CREATED
+  PROJECT_UPDATED
+  PROJECT_DELETED
+  MEMBER_ADDED
+  MEMBER_REMOVED
+  TASK_CREATED
+  TASK_UPDATED
+  TASK_ASSIGNED
+  TASK_STATUS_CHANGED
+  TASK_DELETED
+  PAYMENT_PAID
+  PAYMENT_FAILED
+  PAYMENT_CANCELLED
+}
+
+enum AuditEntity {
+  USER
+  PROJECT
+  TASK
+  PAYMENT
+}
+
+// ───────────────────────────── Models ─────────────────────────────
+
+model User {
+  id            String     @id @default(uuid()) @db.Uuid
+  name          String     @db.VarChar(100)
+  email         String     @unique @db.VarChar(255)
+  passwordHash  String?    @map("password_hash") @db.VarChar(255)
+  googleId      String?    @unique @map("google_id") @db.VarChar(255)
+  avatarUrl     String?    @map("avatar_url") @db.VarChar(500)
+  role          Role       @default(MEMBER)
+  status        UserStatus @default(ACTIVE)
+  plan          Plan       @default(FREE)
+  planExpiresAt DateTime?  @map("plan_expires_at")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  refreshTokens RefreshToken[]
+  ownedProjects Project[]       @relation("ProjectOwner")
+  memberships   ProjectMember[]
+  assignedTasks Task[]          @relation("TaskAssignee")
+  createdTasks  Task[]          @relation("TaskCreator")
+  comments      Comment[]
+  payments      Payment[]
+  auditLogs     AuditLog[]
+
+  @@index([role])
+  @@index([status])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") @db.VarChar(64)
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Project {
+  id          String        @id @default(uuid()) @db.Uuid
+  ownerId     String        @map("owner_id") @db.Uuid
+  name        String        @db.VarChar(100)
+  description String?       @db.VarChar(1000)
+  status      ProjectStatus @default(ACTIVE)
+  dueDate     DateTime?     @map("due_date")
+  deletedAt   DateTime?     @map("deleted_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  owner   User            @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  members ProjectMember[]
+  tasks   Task[]
+
+  @@index([ownerId, deletedAt])
+  @@index([status])
+  @@map("projects")
+}
+
+model ProjectMember {
+  id        String    @id @default(uuid()) @db.Uuid
+  projectId String    @map("project_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  joinedAt  DateTime  @default(now()) @map("joined_at")
+  removedAt DateTime? @map("removed_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@map("project_members")
+}
+
+model Task {
+  id          String       @id @default(uuid()) @db.Uuid
+  projectId   String       @map("project_id") @db.Uuid
+  title       String       @db.VarChar(200)
+  description String?      @db.VarChar(5000)
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  assigneeId  String?      @map("assignee_id") @db.Uuid
+  createdById String       @map("created_by_id") @db.Uuid
+  dueDate     DateTime?    @map("due_date")
+  completedAt DateTime?    @map("completed_at")
+  deletedAt   DateTime?    @map("deleted_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  assignee  User?     @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
+  createdBy User      @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  comments  Comment[]
+
+  @@index([projectId, status])
+  @@index([assigneeId, status])
+  @@index([dueDate])
+  @@map("tasks")
+}
+
+model Comment {
+  id        String   @id @default(uuid()) @db.Uuid
+  taskId    String   @map("task_id") @db.Uuid
+  authorId  String   @map("author_id") @db.Uuid
+  body      String   @db.VarChar(2000)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  author User @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([taskId, createdAt])
+  @@map("comments")
+}
+
+model Payment {
+  id          String        @id @default(uuid()) @db.Uuid
+  userId      String        @map("user_id") @db.Uuid
+  plan        Plan          @default(PRO)
+  amount      Decimal       @db.Decimal(10, 2)
+  currency    String        @default("BDT") @db.VarChar(3)
+  tranId      String        @unique @map("tran_id") @db.VarChar(64)
+  status      PaymentStatus @default(PENDING)
+  valId       String?       @map("val_id") @db.VarChar(100)
+  bankTranId  String?       @map("bank_tran_id") @db.VarChar(100)
+  cardType    String?       @map("card_type") @db.VarChar(100)
+  gatewayData Json?         @map("gateway_data")
+  paidAt      DateTime?     @map("paid_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@map("payments")
+}
+
+model AuditLog {
+  id         String      @id @default(uuid()) @db.Uuid
+  actorId    String?     @map("actor_id") @db.Uuid
+  action     AuditAction
+  entityType AuditEntity @map("entity_type")
+  entityId   String      @map("entity_id") @db.Uuid
+  metadata   Json?
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([createdAt])
+  @@index([actorId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
