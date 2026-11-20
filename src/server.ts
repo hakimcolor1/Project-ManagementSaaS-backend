@@ -1,7 +1,6 @@
 import app from "./app.js";
+import { env } from "./config/env.js";
 
-const port = Number(process.env.PORT ?? 5000);
-
-app.listen(port, () => {
-  console.log(`TaskNest API listening on http://localhost:${port}`);
+app.listen(env.PORT, () => {
+  console.log(`TaskNest API listening on http://localhost:${env.PORT}`);
 });
