@@ -47,12 +47,29 @@ Verified: `npm run typecheck` ✓ · `npm run lint` ✓ · `npm test` 85/85 ✓ 
 
 Known: tests take ~2.5 minutes (remote database round trips). Prisma's pg adapter prints a `pg` deprecation warning ("client.query() while already executing") from inside its own transaction code; harmless, not from TaskNest code.
 
-## Next – Day 4: Payments, admin, Postman
+## Day 4 – Payments, admin, Postman ✅ (2026-11-20)
 
-- SSLCommerz: initiate (server-side amount 500.00 BDT), success/fail/cancel/IPN with server-to-server validation, idempotent activation (+30 days), payment history
-- admin: users list/search, role change (BR-23), block/unblock (BR-24), stats (cached 60 s), audit logs with filters
-- Postman collection + environment
-- Still open from earlier: Google login live test (keys), first Vercel deploy
+- SSLCommerz client (`src/lib/sslcommerz.ts`, plain `fetch`, 15 s timeout): session API + validation API; sandbox unless `SSLC_IS_LIVE=true`. Env `SSLC_STORE_ID` / `SSLC_STORE_PASSWORD` optional at startup → `initiate` answers 503 without them.
+- Payments (7 endpoints): `initiate` (MANAGER; amount 500.00 BDT from `PRO_PLAN`, client amount rejected; `tran_id` `TN-<ms>-<hex>` ≤ 30 chars; gateway error → payment FAILED + 502), `success` / `ipn` (form-encoded; PAID only after the validation API confirms status VALID/VALIDATED, same tran_id, same amount in paisa, BDT), `fail` / `cancel` (PENDING → FAILED / CANCELLED, never PAID), history (manager own, admin all + `userId`), detail (others' → 404).
+- Payment safety: fake/unknown `val_id` changes nothing (400); wrong amount → FAILED + audit; activation in one transaction with the manager row locked and `UPDATE … WHERE status <> PAID`, so success + IPN at the same time extend the plan once; +30 days from the current end if PRO is still active; a gateway-confirmed payment still becomes PAID after a (possibly forged) cancel. Audit: PAYMENT_PAID / PAYMENT_FAILED / PAYMENT_CANCELLED.
+- Admin (5 endpoints, `auth` + `authorize("ADMIN")` on the router): users list (search, role, status, sort, pagination, owned projects + memberships), role change (BR-23: MANAGER ↔ MEMBER only, not self, not admins, 409 if the manager still owns projects or the member is still in projects; user row locked), block/unblock (BR-24: not self, not admins; blocking revokes refresh tokens), stats (counts only, cached 60 s), audit logs (action, entityType, entityId, actorId, from/to, sort, pagination).
+- Error handler: expected 5xx `AppError`s (502/503) are logged in one line; only unexpected errors get a stack trace.
+- Postman: `scripts/postman/definitions.ts` (75 requests, 9 folders, all 38 endpoints + error cases) → `npm run docs:postman` builds `docs/TaskNest.postman_collection.json` + `docs/TaskNest.local.postman_environment.json` and records a real example response for every request (tasknest_test schema, SSLCommerz simulated, tokens redacted). Postman test scripts check the status, the response format, and save tokens/ids.
+- Fail/cancel callbacks answer "Nothing changed: this payment is already PAID" (or FAILED/CANCELLED) when the payment was already closed.
+- Tests: 117 (32 new) — payments (amount from server, roles, gateway errors, validation, idempotency, success + IPN race, stacking, wrong amount, fail/cancel/IPN, closed payments, history/detail access) and admin (access, list/search, role rules, block/unblock with session revocation, stats, audit-log filters). `testTimeout` raised to 60 s: the longest flows make ~16 API calls against the remote database.
+
+Verified: `npm run typecheck` ✓ · `npm run lint` ✓ · `npm test` 116/116 before the last two small changes; after them payments + admin 32/32 ✓ and a full run 116/117 (one long project test hit the old 30 s timeout → limit raised) · `npm run docs:postman` (all 75 requests returned their expected status) ✓ · Newman run of the collection against the compiled server: 75 requests, 149 assertions, 0 failures ✓
+
+Note: both Claude sessions share the `tasknest_test` schema; only one may run tests at a time (announce before running).
+
+Not done (needs keys): a real SSLCommerz sandbox payment end to end; Google login live test.
+
+## Next – Day 5: Deploy and submit
+
+- Vercel: create the project, set env vars (DATABASE_URL, JWT secrets, APP_URL, CORS_ORIGINS, SSLC_*, GOOGLE_*, optional UPSTASH_*), deploy, check `/api/v1/health` live
+- Google OAuth redirect URI and SSLCommerz callbacks on the live URL; one real sandbox payment on localhost and one live
+- production Postman environment (`baseUrl` = live URL) and publish the docs in Postman
+- README: live links and the submission block; record the video
 
 ## Notes
 

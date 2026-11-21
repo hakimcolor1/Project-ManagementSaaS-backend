@@ -19,7 +19,7 @@ Node.js 24 · TypeScript · Express 5 · PostgreSQL (Prisma Postgres) + Prisma O
 
 Architecture: Routes → Controllers → Services → Prisma.
 
-## API (ready so far)
+## API (38 endpoints)
 
 Base URL: `/api/v1`. Protected routes need `Authorization: Bearer <accessToken>`.
 
@@ -51,11 +51,25 @@ Base URL: `/api/v1`. Protected routes need `Authorization: Bearer <accessToken>`
 | `PATCH /tasks/:id/assign` | MANAGER (owner) | `assigneeId` to assign or reassign, `null` to unassign (TODO only) |
 | `POST /tasks/:id/comments` | MANAGER, MEMBER | Add a comment (`body`, 1–2000 characters) |
 | `GET /tasks/:id/comments` | MANAGER, MEMBER | Comments, oldest first, paginated |
+| `POST /payments/initiate` | MANAGER | Start a PRO payment (500.00 BDT from the server) → `paymentUrl` of SSLCommerz |
+| `POST /payments/success` | public (SSLCommerz) | Browser redirect after paying; validated with SSLCommerz → PAID + 30 days PRO |
+| `POST /payments/fail` | public (SSLCommerz) | Payment failed → FAILED |
+| `POST /payments/cancel` | public (SSLCommerz) | Customer cancelled → CANCELLED |
+| `POST /payments/ipn` | public (SSLCommerz) | Server-to-server notification, same validation as success |
+| `GET /payments` | MANAGER (own), ADMIN (all) | Payment history · `page`, `limit`, `status`, `userId` (admin) |
+| `GET /payments/:id` | MANAGER (own), ADMIN | One payment and its status |
+| `GET /admin/users` | ADMIN | Users · `search` (name, email), `role`, `status`, `sortBy`, pagination |
+| `PATCH /admin/users/:id/role` | ADMIN | `role`: MANAGER or MEMBER (not own role, not admins, no orphaned projects) |
+| `PATCH /admin/users/:id/status` | ADMIN | `status`: ACTIVE or BLOCKED (blocking revokes all sessions) |
+| `GET /admin/stats` | ADMIN | Users by role, projects, tasks by status, overdue, payments, revenue, active PRO managers (cached 60 s) |
+| `GET /admin/audit-logs` | ADMIN | Who changed what · `action`, `entityType`, `entityId`, `actorId`, `from`, `to`, pagination |
 | `GET /health` | public | API and database status |
 
 **Task workflow:** the assignee moves TODO → IN_PROGRESS → IN_REVIEW (and IN_PROGRESS → TODO). The project owner can do the same, and also approves (IN_REVIEW → DONE), sends back (IN_REVIEW → IN_PROGRESS) and reopens (DONE → IN_PROGRESS). Any other move is 409. A task needs an assignee before it leaves TODO.
 
 **Rules worth knowing:** a project outside your workspace answers 404; an archived project is read-only (409); a plan limit answers 402 "Upgrade to PRO"; dates are ISO 8601 (a plain date like `2026-12-31` means the end of that day, UTC) and a due date cannot be in the past. Every project, member and task change writes an audit log row in the same transaction.
+
+**Payments (SSLCommerz sandbox):** `POST /payments/initiate` saves a PENDING payment and returns `paymentUrl`. Open it in a browser and pay with one of the test cards shown on the SSLCommerz sandbox page. SSLCommerz then calls `/payments/success` (and `/payments/ipn`). TaskNest trusts neither call by itself: it checks the `val_id` with the SSLCommerz validation API (status, transaction id, amount, currency) and only then, in one transaction, marks the payment PAID and adds 30 days of PRO (to the current end date if PRO is still active). A replayed callback or the IPN never extends the plan twice. `fail` and `cancel` can never set PAID. Needs `SSLC_STORE_ID` and `SSLC_STORE_PASSWORD` (free sandbox store: <https://developer.sslcommerz.com/registration/>); without them `initiate` answers 503.
 
 Every response uses one format:
 
@@ -88,10 +102,18 @@ Check it works: `GET http://localhost:5000/api/v1/health`
 | `npm run typecheck` | TypeScript check |
 | `npm run lint` / `npm run lint:fix` | Biome lint + format check / auto-fix |
 | `npm test` | Unit + API tests (Vitest + Supertest) on the separate `tasknest_test` schema |
+| `npm run docs:postman` | Rebuild the Postman collection and record fresh example responses |
 | `npm run db:deploy` | Apply migrations |
 | `npm run db:status` | Show migration status |
 | `npm run db:seed` | Seed demo data (safe to run again) |
 | `npm run db:studio` | Open Prisma Studio |
+
+## API documentation (Postman)
+
+- [docs/TaskNest.postman_collection.json](docs/TaskNest.postman_collection.json): 75 requests in 9 folders, covering all 38 endpoints plus the important error cases (400, 401, 402, 403, 404, 409). Every request has a description and a recorded example response.
+- [docs/TaskNest.local.postman_environment.json](docs/TaskNest.local.postman_environment.json): `baseUrl` = `http://localhost:5000/api/v1`.
+- Import both into Postman, choose the environment and use **Run collection**. The requests run in order: logins save the tokens and created ids into collection variables, so later requests use them automatically. The collection passes in Newman (75 requests, 149 checks, 0 failures).
+- `npm run docs:postman` rebuilds it from [scripts/postman/definitions.ts](scripts/postman/definitions.ts): it runs every request against the `tasknest_test` schema (SSLCommerz simulated) and saves the real responses as examples, with tokens redacted.
 
 ## Demo accounts (seed)
 
@@ -119,12 +141,15 @@ src/
   server.ts             local server
   routes.ts             mounts modules under /api/v1
   config/env.ts         Zod-checked environment variables
-  lib/                  prisma (pg adapter, tasknest schema, row locks), cache (Upstash), jwt, google
+  lib/                  prisma (pg adapter, tasknest schema, row locks), cache (Upstash), jwt,
+                        google, sslcommerz
   middlewares/          auth, authorize, validate, rateLimit, notFound, errorHandler
   modules/<name>/       routes → controller → service (+ validation) per module
-                        auth, users, health, projects (+ members), tasks (+ comments)
+                        auth, users, health, projects (+ members), tasks (+ comments),
+                        payments, admin
   utils/                AppError, sendResponse, pagination, audit, taskWorkflow, validators,
                         password, hash, plan, duration
 tests/                  Vitest + Supertest (separate tasknest_test schema)
-docs/REQUIREMENTS.md    requirements, ERD, API plan
+scripts/postman/        Postman collection definitions + builder/recorder
+docs/                   REQUIREMENTS.md (requirements, ERD, API plan), Postman collection + environment
 ```
