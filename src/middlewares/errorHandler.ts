@@ -50,7 +50,12 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
 
   if (statusCode >= 500) {
     // Server-side log only; the client never sees stack traces or internal details.
-    console.error(`[error] ${req.method} ${req.originalUrl}`, error);
+    if (error instanceof AppError) {
+      // Expected (e.g. 502/503 from the payment gateway): one line is enough.
+      console.warn(`[error] ${req.method} ${req.path} → ${statusCode} ${message}`);
+    } else {
+      console.error(`[error] ${req.method} ${req.originalUrl}`, error);
+    }
   }
 
   res.status(statusCode).json({ success: false, message, errors });
