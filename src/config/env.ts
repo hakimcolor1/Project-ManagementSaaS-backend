@@ -37,6 +37,13 @@ const envSchema = z.object({
   // Optional: without them, Google login answers 503 "not configured".
   GOOGLE_CLIENT_ID: optionalString,
   GOOGLE_CLIENT_SECRET: optionalString,
+
+  // Optional: without them (or if Redis fails) the API simply runs without a cache.
+  UPSTASH_REDIS_REST_URL: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.url({ protocol: /^https$/, error: "UPSTASH_REDIS_REST_URL must be an https URL" }).optional(),
+  ),
+  UPSTASH_REDIS_REST_TOKEN: optionalString,
 });
 
 const parsed = envSchema.safeParse(process.env);
