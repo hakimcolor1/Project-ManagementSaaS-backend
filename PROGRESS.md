@@ -32,15 +32,27 @@ Verified: `npm run typecheck` ✓ · `npm run lint` ✓ · `npm test` 39/39 ✓ 
 
 Still open: Google login live test (keys), first Vercel deploy.
 
-## Next – Day 3: Projects, members, tasks
+## Day 3 – Projects, members, tasks, comments ✅ (2026-11-20)
 
-- audit log helper (written inside the same transaction as each change)
-- projects CRUD with search, filter, sort, pagination; soft delete; archive/activate
-- FREE plan limits with row locking (`SELECT … FOR UPDATE`)
-- project members: add by email, list, remove (unassign open tasks)
-- tasks: create, list (filters, overdue, search, sort), my-assigned, get, update, soft delete
-- status workflow (state machine) and assignment; comments
-- project stats in `GET /projects/:id`; Redis cache (optional)
+- Helpers: `writeAuditLog(tx, …)` (always inside the change's transaction), `pagination.ts` (page/limit max 100, `sortBy` allow-lists, search, `true`/`false` flags, meta), `validators.ts` (UUID ids, ISO due dates not in the past; a plain date = end of that day UTC), `taskWorkflow.ts` (status-move table §3.2, overdue rule), `lockRow()` (`SELECT … FOR UPDATE` on the schema-qualified table).
+- Projects (8 endpoints incl. members): workspace isolation (manager = owner, member = active membership, else 404; admin 403), search/filter/sort/pagination, stats (tasks by status, overdue, progress %, members), archive/activate, soft delete of project + tasks in one transaction.
+- Plan limits (BR-8): FREE = 2 active projects (owner row locked) and 3 members per project (project row locked) → 402. Archived projects do not count; activating again re-checks the limit. Parallel creates at the limit: only one wins (tested).
+- Members (BR-9/10): add by email (must be an ACTIVE MEMBER, else 400; twice → 409), list, remove (open tasks → unassigned TODO in the same transaction, DONE keeps the assignee), re-adding restores the membership row.
+- Tasks (10 endpoints incl. comments): create with optional assignee, list with filters (`projectId`, `status`, `priority`, `assigneeId`, `overdue`, `search`) and sorting (priority in enum order, due date nulls last), my-assigned (MEMBER), details with `isOverdue`, `commentCount`, `nextStatuses`, edit, soft delete, assign/reassign/unassign (BR-13), status moves with optimistic check (`WHERE status = old` → 409 for the loser), comments (oldest first, paginated).
+- Archived project = read-only (409) for tasks, members, comments and edits.
+- Optional Upstash Redis cache (`@upstash/redis` 1.41.0): project stats `project:<id>:stats` for 5 minutes, cleared after every task/member/project change. Off when the env vars are empty and always off in tests; Redis errors are logged and ignored.
+- Tests: 85 (46 new) — projects/limits/members/archive/delete, full §3.1 workflow, permissions, concurrency, lists, comments, unit tests for the status table and helpers.
+
+Verified: `npm run typecheck` ✓ · `npm run lint` ✓ · `npm test` 85/85 ✓ · smoke test on the demo data in `tasknest` (manager list + stats, member my-assigned, overdue filter) ✓
+
+Known: tests take ~2.5 minutes (remote database round trips). Prisma's pg adapter prints a `pg` deprecation warning ("client.query() while already executing") from inside its own transaction code; harmless, not from TaskNest code.
+
+## Next – Day 4: Payments, admin, Postman
+
+- SSLCommerz: initiate (server-side amount 500.00 BDT), success/fail/cancel/IPN with server-to-server validation, idempotent activation (+30 days), payment history
+- admin: users list/search, role change (BR-23), block/unblock (BR-24), stats (cached 60 s), audit logs with filters
+- Postman collection + environment
+- Still open from earlier: Google login live test (keys), first Vercel deploy
 
 ## Notes
 
