@@ -1,0 +1,14 @@
+# Never upload secrets or local build output: Vercel installs and builds by itself.
+.env
+.env.*
+!.env.example
+node_modules
+dist
+src/generated
+coverage
+*.log
+
+# Not needed to build or run the API
+tests
+scripts
+docs
