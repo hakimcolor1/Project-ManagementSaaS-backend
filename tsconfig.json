@@ -16,5 +16,5 @@
     "outDir": "dist",
     "noEmit": true
   },
-  "include": ["src", "prisma", "tests", "api", "*.ts"]
+  "include": ["src", "prisma", "tests", "scripts", "api", "*.ts"]
 }
