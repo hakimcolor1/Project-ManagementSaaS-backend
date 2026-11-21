@@ -27,7 +27,9 @@ process.env.GOOGLE_CLIENT_SECRET = "";
 
 const COLLECTION_FILE = "docs/TaskNest.postman_collection.json";
 const ENVIRONMENT_FILE = "docs/TaskNest.local.postman_environment.json";
+const PRODUCTION_ENVIRONMENT_FILE = "docs/TaskNest.production.postman_environment.json";
 const LOCAL_BASE_URL = "http://localhost:5000/api/v1";
+const PRODUCTION_BASE_URL = "https://tasknest-backend-blush.vercel.app/api/v1";
 const JSON_HEADER = { key: "Content-Type", value: "application/json; charset=utf-8" };
 
 function run(command: string): void {
@@ -342,14 +344,21 @@ const collection = {
   })),
 };
 
-const environment = {
-  name: "TaskNest – Local",
-  values: [{ key: "baseUrl", value: LOCAL_BASE_URL, type: "default", enabled: true }],
+const environmentFor = (name: string, baseUrl: string) => ({
+  name,
+  values: [{ key: "baseUrl", value: baseUrl, type: "default", enabled: true }],
   _postman_variable_scope: "environment",
-};
+});
 
 writeFileSync(COLLECTION_FILE, `${JSON.stringify(collection, null, 2)}\n`);
-writeFileSync(ENVIRONMENT_FILE, `${JSON.stringify(environment, null, 2)}\n`);
+writeFileSync(
+  ENVIRONMENT_FILE,
+  `${JSON.stringify(environmentFor("TaskNest – Local", LOCAL_BASE_URL), null, 2)}\n`,
+);
+writeFileSync(
+  PRODUCTION_ENVIRONMENT_FILE,
+  `${JSON.stringify(environmentFor("TaskNest – Production", PRODUCTION_BASE_URL), null, 2)}\n`,
+);
 
 const requestCount = folders.reduce((total, folder) => total + folder.items.length, 0);
 const exampleCount = collection.item.reduce(
@@ -357,4 +366,4 @@ const exampleCount = collection.item.reduce(
   0,
 );
 console.log(`\nWrote ${COLLECTION_FILE} (${requestCount} requests, ${exampleCount} examples)`);
-console.log(`Wrote ${ENVIRONMENT_FILE}`);
+console.log(`Wrote ${ENVIRONMENT_FILE} and ${PRODUCTION_ENVIRONMENT_FILE}`);
