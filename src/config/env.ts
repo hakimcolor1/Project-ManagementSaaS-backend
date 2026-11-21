@@ -44,6 +44,15 @@ const envSchema = z.object({
     z.url({ protocol: /^https$/, error: "UPSTASH_REDIS_REST_URL must be an https URL" }).optional(),
   ),
   UPSTASH_REDIS_REST_TOKEN: optionalString,
+
+  // SSLCommerz store (sandbox: https://developer.sslcommerz.com/registration/).
+  // Optional at startup: without them POST /payments/initiate answers 503 "not configured".
+  SSLC_STORE_ID: optionalString,
+  SSLC_STORE_PASSWORD: optionalString,
+  SSLC_IS_LIVE: z
+    .enum(["true", "false"], { error: "SSLC_IS_LIVE must be true or false" })
+    .default("false")
+    .transform((value) => value === "true"),
 });
 
 const parsed = envSchema.safeParse(process.env);
