@@ -5,6 +5,12 @@ TaskNest is a REST API for small teams. A manager creates projects, adds team me
 > B7A6 backend assignment (Project Management SaaS). Backend only, no frontend; use Postman.
 > Full requirements: [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) · Build status: [PROGRESS.md](PROGRESS.md)
 
+## Live API
+
+- Base URL: **<https://tasknest-backend-blush.vercel.app/api/v1>**
+- Health check: <https://tasknest-backend-blush.vercel.app/api/v1/health>
+- Hosted on Vercel (one serverless function, Node.js 24); database: Prisma Postgres, schema `tasknest`.
+
 ## Roles
 
 | Role | Can do |
@@ -111,7 +117,7 @@ Check it works: `GET http://localhost:5000/api/v1/health`
 ## API documentation (Postman)
 
 - [docs/TaskNest.postman_collection.json](docs/TaskNest.postman_collection.json): 75 requests in 9 folders, covering all 38 endpoints plus the important error cases (400, 401, 402, 403, 404, 409). Every request has a description and a recorded example response.
-- [docs/TaskNest.local.postman_environment.json](docs/TaskNest.local.postman_environment.json): `baseUrl` = `http://localhost:5000/api/v1`.
+- Environments: [docs/TaskNest.production.postman_environment.json](docs/TaskNest.production.postman_environment.json) (`baseUrl` = `https://tasknest-backend-blush.vercel.app/api/v1`) and [docs/TaskNest.local.postman_environment.json](docs/TaskNest.local.postman_environment.json) (`http://localhost:5000/api/v1`).
 - Import both into Postman, choose the environment and use **Run collection**. The requests run in order: logins save the tokens and created ids into collection variables, so later requests use them automatically. The collection passes in Newman (75 requests, 149 checks, 0 failures).
 - `npm run docs:postman` rebuilds it from [scripts/postman/definitions.ts](scripts/postman/definitions.ts): it runs every request against the `tasknest_test` schema (SSLCommerz simulated) and saves the real responses as examples, with tokens redacted.
 
@@ -123,6 +129,13 @@ Check it works: `GET http://localhost:5000/api/v1/health`
 | MANAGER | `manager@tasknest.com` | `Manager@123` |
 | MEMBER | `rahim@tasknest.com` | `Member@123` |
 | MEMBER | `karim@tasknest.com` | `Member@123` |
+
+## Deployment (Vercel)
+
+1. `vercel link` (project `tasknest-backend`) and add the production environment variables: `DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN`, `CORS_ORIGINS`, `APP_URL` (the live URL), and for payments and Google login `SSLC_STORE_ID`, `SSLC_STORE_PASSWORD`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (optional: `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`).
+2. `vercel deploy --prod`. Vercel runs `npm run build` (Prisma client + TypeScript → `dist/`); [api/index.js](api/index.js) serves the Express app and [vercel.json](vercel.json) sends every path to it. [.vercelignore](.vercelignore) keeps `.env` and local build output out of the upload.
+3. Migrations and the seed run from a local machine against the same database: `npm run db:deploy`, then `npm run db:seed`.
+4. Google OAuth redirect URI to register in Google Cloud: `<APP_URL>/api/v1/auth/google/callback`. SSLCommerz callback URLs are sent with every payment session (built from `APP_URL`), so nothing has to be registered for them.
 
 ## Database
 
@@ -152,4 +165,16 @@ src/
 tests/                  Vitest + Supertest (separate tasknest_test schema)
 scripts/postman/        Postman collection definitions + builder/recorder
 docs/                   REQUIREMENTS.md (requirements, ERD, API plan), Postman collection + environment
+```
+
+## Submission
+
+```text
+Project Name    : TaskNest – Project Management SaaS
+Backend Repo    : https://github.com/hakimcolor1/Project-ManagementSaaS-backend
+Live API        : https://tasknest-backend-blush.vercel.app
+API Docs        : <Postman "Publish docs" link>
+Demo Video      : <Loom or Google Drive link, shared as "Anyone with the link">
+Admin Email     : admin@tasknest.com
+Admin Password  : Admin@12345
 ```

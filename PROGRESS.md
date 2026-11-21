@@ -64,12 +64,22 @@ Note: both Claude sessions share the `tasknest_test` schema; only one may run te
 
 Not done (needs keys): a real SSLCommerz sandbox payment end to end; Google login live test.
 
-## Next – Day 5: Deploy and submit
+## Day 5 – Deploy and submit (in progress, 2026-11-20)
 
-- Vercel: create the project, set env vars (DATABASE_URL, JWT secrets, APP_URL, CORS_ORIGINS, SSLC_*, GOOGLE_*, optional UPSTASH_*), deploy, check `/api/v1/health` live
-- Google OAuth redirect URI and SSLCommerz callbacks on the live URL; one real sandbox payment on localhost and one live
-- production Postman environment (`baseUrl` = live URL) and publish the docs in Postman
-- README: live links and the submission block; record the video
+Done:
+
+- Vercel project `hakimcolor2/tasknest-backend`, production domain **<https://tasknest-backend-blush.vercel.app>** (deployed from the working tree with `vercel deploy --prod`; Node 24, one function `api/index`).
+- Production env vars (all marked sensitive): `DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN`, `CORS_ORIGINS`, `APP_URL`. `.vercelignore` keeps `.env` and local builds out of the upload.
+- Git auto-deploy is **disconnected** on purpose: `vercel link` had connected the GitHub repo, and pushes of older commit snapshots replaced the full deployment. Reconnect with `vercel git connect` once `main` holds the full code, if wanted.
+- Live checks on production: health (database up), demo logins for all 3 roles, `/users/me`, projects + stats, overdue tasks, my-assigned, admin stats and audit logs, payment history; 403 for wrong roles (member → create project, manager → admin, admin → projects), 401 without token, 400 validation, 404 unknown route. Sessions created by the check were logged out again.
+- `docs/TaskNest.production.postman_environment.json` (also written by `npm run docs:postman`); README: live URL, deployment steps, submission block.
+
+Still open:
+
+- SSLCommerz sandbox keys → set `SSLC_STORE_ID` / `SSLC_STORE_PASSWORD` locally and on Vercel, then one real sandbox payment locally and one live (until then `initiate` answers 503).
+- Google OAuth client → set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`, redirect URIs `http://localhost:5000/api/v1/auth/google/callback` and `https://tasknest-backend-blush.vercel.app/api/v1/auth/google/callback`, then test the login.
+- Publish the Postman docs (Postman → collection → Publish) and put the link in the README submission block; record the video.
+- Commit the Day 4/5 files (the other session is pushing Days 1–3 in steps).
 
 ## Notes
 
